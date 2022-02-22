@@ -30,6 +30,7 @@ from keras.engine import input_spec
 from keras.engine import node as node_module
 from keras.engine import training as training_lib
 from keras.engine import training_utils
+from keras.saving.saved_model import json_utils
 from keras.saving.saved_model import network_serialization
 from keras.utils import generic_utils
 from keras.utils import tf_inspect
@@ -1231,8 +1232,15 @@ def reconstruct_from_config(config, custom_objects=None, created_layers=None):
         input_tensors.append(
             tf.nest.flatten(inbound_node.outputs)[inbound_tensor_index])
       else:
-        # We received a constant w/ no Keras history attached
-        input_tensors.append(inbound_tensor_index)
+        # We received a constant w/ no Keras history attached,
+        # which means it is a constant tensor input.
+        if (isinstance(inbound_tensor_index, tuple) and
+            len(inbound_tensor_index) and
+            inbound_tensor_index[0] == node_module._COMPOSITE_TYPE):
+          input_tensors.append(
+              json_utils.decode(inbound_tensor_index[1]))
+        else:
+          input_tensors.append(inbound_tensor_index)
     input_tensors = tf.nest.pack_sequence_as(node_data, input_tensors)
     # Call layer on its inputs, thus creating the node
     # and building the layer if needed.

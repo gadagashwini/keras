@@ -19,9 +19,12 @@ import tensorflow.compat.v2 as tf
 
 import enum
 from keras.saving.saved_model import json_utils
+from keras.testing_infra import test_combinations
+from keras.testing_infra import test_utils
+import numpy as np
 
 
-class JsonUtilsTest(tf.test.TestCase):
+class JsonUtilsTest(test_combinations.TestCase):
 
   def test_encode_decode_tensor_shape(self):
     metadata = {
@@ -67,6 +70,27 @@ class JsonUtilsTest(tf.test.TestCase):
     string = json_utils.Encoder().encode(config)
     loaded = json_utils.decode(string)
     self.assertAllEqual({'key': 'a', 'key2': 'b'}, loaded)
+
+  @test_utils.run_v2_only
+  def test_encode_decode_ragged_tensor(self):
+    x = tf.ragged.constant([[1., 2.], [3.]])
+    string = json_utils.Encoder().encode(x)
+    loaded = json_utils.decode(string)
+    assert all(np.concatenate(tf.math.equal(x, loaded).numpy()))
+
+  @test_utils.run_v2_only
+  def test_encode_decode_extension_type_tensor(self):
+    class MaskedTensor(tf.experimental.ExtensionType):
+      __name__ = 'MaskedTensor'
+      values: tf.Tensor
+      mask: tf.Tensor
+    x = MaskedTensor(values=[[1, 2, 3], [4, 5, 6]],
+                     mask=[[True, True, False], [True, False, True]])
+    string = json_utils.Encoder().encode(x)
+    loaded = json_utils.decode(string)
+    assert all(np.concatenate(tf.math.equal(x.values, loaded.values).numpy()))
+    assert all(np.concatenate(tf.math.equal(x.mask, loaded.mask).numpy()))
+
 
 if __name__ == '__main__':
   tf.test.main()
